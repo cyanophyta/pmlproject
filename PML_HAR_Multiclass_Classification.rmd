@@ -1,0 +1,115 @@
+---
+title: "Human Activity Recognition: Multiclass Classification"
+author: "cyanophyta"
+date: "August 12, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, warnings = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+We are studying Human Activity Recognition data here, collected from this archived web site: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. Data set here contains various measurements gathered from devices attached to bodies of participants while they were performing barbell lifts in five different positions such as Sitting, Sitting down, Standing, Standing up and Walking.
+
+We'll try to fit a number of models with the aim of predicting the varible that indicates the position of the participant while performing the activity. In training set, this position value is known and is marked as 'classe' variable.
+
+## Loading data
+
+We load training set from pml-training.csv file (url: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) and test data from pml-testing.csv file (url: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv). As NA values are marked here as either empty string or as "NA" or sometimes as "#DIV/0!", we read the csv files noting these possible values of NA strings.
+
+```{r warning=FALSE}
+library(dplyr, warn.conflicts = FALSE, quietly = TRUE)
+library(caret, warn.conflicts = FALSE, quietly = TRUE)
+library(rpart, warn.conflicts = FALSE, quietly = TRUE)
+library(randomForest, warn.conflicts = FALSE, quietly = TRUE)
+trainset <- read.csv("pml-training.csv", na.strings=c("#DIV/0!", "", "NA"))
+testset<- read.csv("pml-testing.csv", na.strings=c("#DIV/0!", "", "NA"))
+
+dim(trainset)
+dim(testset)
+```
+
+## Cleaning and transforming data
+
+While exploring variables in training set, we notice that the first seven columns are not required for prediction goal here, as these variables are not measurements which can help in identifying 'classe' variable. Once these variables are removed, we look for presence of NA in measurements and we remove the variables with NA values from our set of predictors. 
+
+We do this cleaning exercise on both training and test sets. Finally we note down the dimensions of both training and test sets. 
+
+```{r warning=FALSE}
+trainset <- trainset[, -c(1:7)]
+testset <- testset[, -c(1:7)]
+
+nacols <- function(df) {
+  colnames(df)[unlist(lapply(df, function(x) anyNA(x)))]
+}
+
+nacolList <- nacols(trainset)
+
+subtrainset <- trainset %>% 
+  select(-one_of(nacolList))
+
+subtestset <- testset %>% 
+  select(-one_of(nacolList))
+
+dim(subtrainset)
+dim(subtestset)
+```                
+
+Cleanup steps reduced the list of predictor candidates to 53, whereas the original sets had 160 variables. Now, we plot a bar chart of 'classe' variable from training set.
+
+```{r warning=FALSE}
+plot(subtrainset$classe)
+```
+
+## Data preparation for cross-validation
+
+We divide the training set into two parts, in 3:1 ratio, to form training set named 'training' and cross-validation set named 'testing'. As cross-validation set is not used for building models, accuracy measured for prediction here will measure out-of-sample errors for fitted models. 
+
+From this point we set a seed of 2017 for reproducibility purpose.
+
+
+```{r warning=FALSE}
+set.seed(2017)
+inTrain <- createDataPartition(y=subtrainset$classe, p=0.75, list=FALSE)
+training <- subtrainset[inTrain,]
+testing <- subtrainset[-inTrain,]
+
+dim(training)
+dim(testing)
+```
+
+## Prediction using Recursive Partitioning
+
+Our first attempt to fit a prediction model is to use rpart model from rpart package of R. 
+
+```{r warning=FALSE}
+modTree <- rpart(classe ~ ., data = training, method = "class")
+predTree <- predict(modTree, testing, type = "class")
+confusionMatrix(predTree, testing$classe)
+```
+
+As the Confusion Matrix output shows, it has an accuracy of 0.7223          
+with 95% Confidence interval being (0.7095, 0.7348).
+
+## Prediction using Random Forest
+
+Our second attempt is made using Random Forest model from randomForest package of R.
+
+```{r warning=FALSE}
+modRF <- randomForest(classe ~ ., data = training, method = "class")
+predRF <- predict(modRF, testing, type = "class")
+confusionMatrix(predRF, testing$classe)
+```
+As the Confusion Matrix output shows here, this random forest model produces an accuracy of 0.9949 with 95% Confidence Interval : (0.9925, 0.9967)
+
+## Conclusion
+
+First model (rpart) has an accuracy of 0.7223 on cross-validation set. So, it has out-of-sample error (1 - 0.7223 =) 0.2777. Second model (random forest) has an accuracy of 0.9949 on cross-validation set. So, it has an out-of-sample error (1 - 0.9949 =) 0.0051.
+
+As random forest model has much better accuracy and very low out-of-sample error, we chose this model for prediction on testset, as the expected misclassification error is very low.
+
+```{r warning=FALSE}
+predict(modRF, subtestset, type = "class")
+```
