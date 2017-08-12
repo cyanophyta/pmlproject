@@ -1,1 +1,3 @@
-This project has a rmd file and a Knit HTML generated from the rmd file
+gh-pages link of html:
+https://cyanophyta.github.io/pmlproject/PML_HAR_Multiclass_Classification.html
+Or please check the pdf file.
